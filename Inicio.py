@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime
 
 # =========================
-# CONFIGURACIÓN DE PÁGINA
+# CONFIGURACIÓN
 # =========================
 st.set_page_config(
     page_title="Monitoreo Meteorológico - EAFIT",
@@ -14,13 +14,12 @@ st.set_page_config(
 )
 
 # =========================
-# ESTILO CSS - TEMA OSCURO PROFESIONAL
+# ESTILO CSS - TEMA OSCURO + ICONOS
 # =========================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
-    /* Global */
     .main {
         font-family: 'Inter', sans-serif;
         padding: 2rem;
@@ -58,15 +57,31 @@ st.markdown("""
         color: #e0e0e0;
     }
     
-    /* Métricas */
-    .metric-card {
-        background: linear-gradient(135deg, #0070f3, #00c6ff);
+    /* Tarjetas de estadísticas */
+    .stat-card {
+        background: linear-gradient(135deg, #1e3a8a, #1e40af);
         color: white;
-        padding: 1.2rem;
-        border-radius: 12px;
+        padding: 1.5rem;
+        border-radius: 14px;
         text-align: center;
-        font-weight: 600;
-        box-shadow: 0 4px 10px rgba(0, 112, 243, 0.3);
+        box-shadow: 0 6px 16px rgba(30, 58, 138, 0.4);
+        transition: transform 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+    }
+    .stat-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin: 0.5rem 0;
+    }
+    .stat-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
     }
     
     /* Inputs */
@@ -85,7 +100,7 @@ st.markdown("""
         border-radius: 10px;
         border: none;
         font-weight: 500;
-        padding: 0.5rem 1rem;
+        padding: 0.6rem 1.2rem;
     }
     .stButton > button:hover {
         background: #005edc;
@@ -100,7 +115,6 @@ st.markdown("""
     /* Sidebar */
     .css-1d391kg, .css-1lcbmhc {
         background: #161b22 !important;
-        color: #e0e0e0;
     }
     
     /* Footer */
@@ -112,24 +126,17 @@ st.markdown("""
         margin-top: 3rem;
         border-top: 1px solid #2d3748;
     }
-    
-    /* Alertas */
-    .stAlert {
-        background: #1a1f2e;
-        border: 1px solid #3a3f50;
-        color: #e0e0e0;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # =========================
-# TÍTULO PRINCIPAL
+# TÍTULO CON EMOJIS
 # =========================
 st.markdown('<h1 class="header-title">Cloud Monitoreo Meteorológico EAFIT</h1>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Presión atmosférica y velocidad del viento en tiempo real</p>', unsafe_allow_html=True)
 
 # =========================
-# SIDEBAR - INFORMACIÓN
+# SIDEBAR
 # =========================
 with st.sidebar:
     st.image("https://www.eafit.edu.co/-/media/eafit/images/logos/eafit-logo.png", width=180)
@@ -150,45 +157,38 @@ with st.sidebar:
 # =========================
 st.markdown("<div class='card'>", unsafe_allow_html=True)
 st.markdown("### Upload Cargar Archivo CSV")
-uploaded_file = st.file_uploader("Selecciona tu archivo de datos", type=['csv'], label_visibility="collapsed")
+uploaded_file = st.file_uploader("Selecciona tu archivo", type=['csv'], label_visibility="collapsed")
 st.markdown("</div>", unsafe_allow_html=True)
 
 if uploaded_file is not None:
     try:
-        # Leer CSV
         df = pd.read_csv(uploaded_file)
         if df.empty:
-            st.error("El archivo CSV está vacío.")
+            st.error("El archivo está vacío.")
             st.stop()
 
-        # Limpiar nombres de columnas
-        df.columns = df.columns.str.strip()
-        df.columns = df.columns.str.replace(r'\s+', ' ', regex=True)
+        # Limpiar columnas
+        df.columns = df.columns.str.strip().str.replace(r'\s+', ' ', regex=True)
 
-        # Detectar columna de tiempo
+        # Detectar tiempo
         time_col = None
-        time_keywords = ['time', 'timestamp', 'fecha', 'hora']
         for col in df.columns:
-            if any(kw in col.lower() for kw in time_keywords):
+            if any(kw in col.lower() for kw in ['time', 'fecha', 'timestamp', 'hora']):
                 time_col = col
                 break
 
         if time_col:
             df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
             df = df.dropna(subset=[time_col])
-            if df.empty:
-                st.error("No se encontraron fechas válidas en la columna de tiempo.")
-                st.stop()
             df = df.set_index(time_col)
 
-        # Detectar columnas numéricas
+        # Columnas numéricas
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         if not numeric_cols:
-            st.error("No se encontraron columnas con datos numéricos.")
-            st.info("Asegúrate de que el CSV tenga valores como 1013.5, 3.2, etc.")
+            st.error("No hay datos numéricos.")
             st.stop()
 
-        # Mapeo de nombres amigables
+        # Mapeo de nombres
         name_map = {
             'presion': 'Presión atmosférica',
             'pressure': 'Presión atmosférica',
@@ -201,13 +201,11 @@ if uploaded_file is not None:
 
         df_clean = df.copy()
         for col in numeric_cols:
-            col_lower = col.lower()
             for key, name in name_map.items():
-                if key in col_lower:
+                if key in col.lower():
                     df_clean = df_clean.rename(columns={col: name})
                     break
 
-        # Usar nombres amigables o fallback
         final_cols = [c for c in df_clean.columns if c in name_map.values()]
         if not final_cols:
             final_cols = numeric_cols[:2]
@@ -218,7 +216,7 @@ if uploaded_file is not None:
             final_cols = ['Presión atmosférica', 'Velocidad del viento'][:len(final_cols)]
 
         # =========================
-        # PESTAÑAS CON NOMBRES CLAROS
+        # PESTAÑAS CON EMOJIS Y SENTIDO
         # =========================
         tab1, tab2, tab3, tab4 = st.tabs([
             "Gráficos de Presión y Viento",
@@ -233,8 +231,8 @@ if uploaded_file is not None:
         with tab1:
             st.markdown("<div class='card'>", unsafe_allow_html=True)
             st.markdown("### Gráficos en Tiempo Real")
-            variable = st.selectbox("Selecciona variable", final_cols, key="chart_var")
-            chart_type = st.radio("Tipo de gráfico", ["Línea", "Área", "Barra"], horizontal=True)
+            variable = st.selectbox("Selecciona variable", final_cols, key="chart")
+            chart_type = st.radio("Tipo", ["Línea", "Área", "Barra"], horizontal=True)
 
             if chart_type == "Línea":
                 st.line_chart(df_clean[variable], use_container_width=True, color="#00c6ff")
@@ -243,25 +241,57 @@ if uploaded_file is not None:
             else:
                 st.bar_chart(df_clean[variable], use_container_width=True, color="#00c6ff")
 
-            if st.checkbox("Mostrar datos crudos"):
+            if st.checkbox("Mostrar datos"):
                 st.dataframe(df_clean[final_cols], use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
         # -----------------------
-        # PESTAÑA 2: ESTADÍSTICAS
+        # PESTAÑA 2: ESTADÍSTICAS (¡RENOVADA!)
         # -----------------------
         with tab2:
             st.markdown("<div class='card'>", unsafe_allow_html=True)
-            st.markdown("### Resumen Estadístico")
-            cols = st.columns(len(final_cols))
-            for i, var in enumerate(final_cols):
-                with cols[i]:
-                    stats = df_clean[var].describe()
-                    unit = 'hPa' if 'Presión' in var else 'm/s'
-                    st.markdown(f"<div class='metric-card'>", unsafe_allow_html=True)
-                    st.metric(var, f"{stats['mean']:.2f} {unit}")
-                    st.caption(f"Máx: {stats['max']:.1f} | Mín: {stats['min']:.1f}")
-                    st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("### Estadísticas Meteorológicas")
+
+            for var in final_cols:
+                stats = df_clean[var].describe()
+                unit = 'hPa' if 'Presión' in var else 'm/s'
+                icon = "Barometer" if 'Presión' in var else "Wind"
+
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-icon">{icon}</div>
+                        <div class="stat-value">{stats['mean']:.2f}</div>
+                        <div class="stat-label">Promedio {unit}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col2:
+                    st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-icon">Up Arrow</div>
+                        <div class="stat-value">{stats['max']:.2f}</div>
+                        <div class="stat-label">Máximo {unit}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col3:
+                    st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-icon">Down Arrow</div>
+                        <div class="stat-value">{stats['min']:.2f}</div>
+                        <div class="stat-label">Mínimo {unit}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col4:
+                    st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-icon">Sigma</div>
+                        <div class="stat-value">{stats['std']:.2f}</div>
+                        <div class="stat-label">Desviación {unit}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
+
             st.markdown("</div>", unsafe_allow_html=True)
 
         # -----------------------
@@ -269,24 +299,24 @@ if uploaded_file is not None:
         # -----------------------
         with tab3:
             st.markdown("<div class='card'>", unsafe_allow_html=True)
-            st.markdown("### Filtros Interactivos")
-            var_filter = st.selectbox("Filtrar por variable", final_cols, key="filter_var")
-            min_val, max_val = df_clean[var_filter].min(), df_clean[var_filter].max()
+            st.markdown("### Filtros por Rango de Valores")
+            var = st.selectbox("Filtrar por", final_cols, key="f")
+            minv, maxv = df_clean[var].min(), df_clean[var].max()
             col1, col2 = st.columns(2)
             with col1:
-                low = st.slider("Valor mínimo", float(min_val), float(max_val), float(min_val), step=0.1)
+                low = st.slider("Mínimo", float(minv), float(maxv), float(minv), step=0.1)
             with col2:
-                high = st.slider("Valor máximo", float(min_val), float(max_val), float(max_val), step=0.1)
+                high = st.slider("Máximo", float(minv), float(maxv), float(maxv), step=0.1)
 
-            filtered = df_clean[(df_clean[var_filter] >= low) & (df_clean[var_filter] <= high)]
-            st.success(f"**{len(filtered)} registros** cumplen el filtro.")
+            filtered = df_clean[(df_clean[var] >= low) & (df_clean[var] <= high)]
+            st.success(f"**{len(filtered)} registros** filtrados")
             st.dataframe(filtered[final_cols], use_container_width=True)
 
             csv = filtered.to_csv().encode('utf-8')
             st.download_button(
-                "Download Descargar datos filtrados",
+                "Download Descargar",
                 data=csv,
-                file_name=f"datos_filtrados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                file_name=f"filtrado_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv"
             )
             st.markdown("</div>", unsafe_allow_html=True)
@@ -302,30 +332,25 @@ if uploaded_file is not None:
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("#### Location Coordenadas")
-                st.write("**Latitud:** 6.2006° N")
-                st.write("**Longitud:** -75.5783° W")
-                st.write("**Altitud:** 1,495 m.s.n.m")
+                st.write("**Lat:** 6.2006° N")
+                st.write("**Lon:** -75.5783° W")
+                st.write("**Alt:** 1,495 m.s.n.m")
             with col2:
-                st.markdown("#### Sensor Detalles del Sensor")
+                st.markdown("#### Sensor Sensor")
                 st.write("**Modelo:** ESP32 + BME280")
-                st.write("**Ubicación:** Edificio de Ingeniería")
-                st.write("**Frecuencia:** 1 medición/min")
+                st.write("**Edificio:** Ingeniería")
             st.markdown("</div>", unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"Error al procesar el archivo: {str(e)}")
-        st.info("Posibles causas:\n"
-                "- Columna con texto no numérico\n"
-                "- Nombres con espacios o caracteres especiales\n"
-                "- Archivo corrupto o mal formateado")
+        st.error(f"Error: {str(e)}")
+        st.info("Verifica el formato del CSV.")
 
 else:
-    st.info("Upload Por favor, carga un archivo CSV para comenzar.")
+    st.info("Upload Carga un archivo CSV para comenzar.")
     st.code("""
 Time,analogico ESP32,velocidad viento
 2025-11-11 12:00:00,1013.5,3.2
 2025-11-11 12:01:00,1013.2,3.5
-2025-11-11 12:02:00,1013.0,4.0
     """)
 
 # =========================
@@ -333,7 +358,6 @@ Time,analogico ESP32,velocidad viento
 # =========================
 st.markdown("""
 <div class='footer'>
-    <p>Cloud Desarrollado para monitoreo ambiental urbano | 
-    <strong>Universidad EAFIT</strong> | Medellín, Colombia</p>
+    <p>Cloud Desarrollado para EAFIT | Medellín, Colombia</p>
 </div>
 """, unsafe_allow_html=True)
