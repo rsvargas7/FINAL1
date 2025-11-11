@@ -8,7 +8,7 @@ from datetime import datetime
 # =========================
 st.set_page_config(
     page_title="Monitoreo Meteorológico - EAFIT",
-    page_icon="Cloud",
+    page_icon="⛈️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
