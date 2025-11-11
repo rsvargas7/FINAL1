@@ -4,23 +4,23 @@ import numpy as np
 from datetime import datetime
 
 # =========================
-# Configuración de Página
+# CONFIGURACIÓN DE PÁGINA
 # =========================
 st.set_page_config(
-    page_title="Análisis Meteorológico - EAFIT",
-    page_icon="🌧️",
+    page_title="Monitoreo Meteorológico - EAFIT",
+    page_icon="Cloud",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =========================
-# ESTILO CSS - TEMA OSCURO
+# ESTILO CSS - TEMA OSCURO PROFESIONAL
 # =========================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
-    /* Fondo y fuente global */
+    /* Global */
     .main {
         font-family: 'Inter', sans-serif;
         padding: 2rem;
@@ -68,12 +68,9 @@ st.markdown("""
         font-weight: 600;
         box-shadow: 0 4px 10px rgba(0, 112, 243, 0.3);
     }
-    .metric-card .stMetricValue {
-        color: white !important;
-    }
     
-    /* Selectbox, Sliders, Botones */
-    .stSelectbox > div > div {
+    /* Inputs */
+    .stSelectbox > div > div, .stMultiSelect > div > div {
         background-color: #262730 !important;
         color: #e0e0e0 !important;
         border: 1px solid #3a3f50 !important;
@@ -88,6 +85,7 @@ st.markdown("""
         border-radius: 10px;
         border: none;
         font-weight: 500;
+        padding: 0.5rem 1rem;
     }
     .stButton > button:hover {
         background: #005edc;
@@ -102,6 +100,7 @@ st.markdown("""
     /* Sidebar */
     .css-1d391kg, .css-1lcbmhc {
         background: #161b22 !important;
+        color: #e0e0e0;
     }
     
     /* Footer */
@@ -124,65 +123,72 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================
-# Título Principal
+# TÍTULO PRINCIPAL
 # =========================
-st.markdown('<h1 class="header-title">🌧️ Análisis Meteorológico EAFIT</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Monitoreo en tiempo real | Universidad EAFIT, Medellín</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="header-title">Cloud Monitoreo Meteorológico EAFIT</h1>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">Presión atmosférica y velocidad del viento en tiempo real</p>', unsafe_allow_html=True)
 
 # =========================
-# Sidebar
+# SIDEBAR - INFORMACIÓN
 # =========================
 with st.sidebar:
-    st.markdown("### 🌍 **Ubicación**")
+    st.image("https://www.eafit.edu.co/-/media/eafit/images/logos/eafit-logo.png", width=180)
+    st.markdown("### Location Ubicación")
     st.markdown("**Universidad EAFIT**")
-    st.caption("📍 Lat: 6.2006, Lon: -75.5783")
-    st.caption("🗻 Alt: ~1,495 m.s.n.m")
+    st.caption("Lat: 6.2006, Lon: -75.5783")
+    st.caption("Altitud: ~1,495 m.s.n.m")
     st.markdown("---")
-    st.markdown("### 📡 **Sensor**")
+    st.markdown("### Sensor Sensor")
     st.markdown("- **Tipo:** ESP32 + BME280")
     st.markdown("- **Variables:** Presión, Viento")
     st.markdown("- **Frecuencia:** 1 min")
     st.markdown("---")
-    st.success("✅ Sistema en línea")
+    st.success("Sistema en línea")
 
 # =========================
-# Carga de Archivo
+# CARGA DE ARCHIVO
 # =========================
 st.markdown("<div class='card'>", unsafe_allow_html=True)
-st.markdown("### 📂 Cargar Archivo CSV")
+st.markdown("### Upload Cargar Archivo CSV")
 uploaded_file = st.file_uploader("Selecciona tu archivo de datos", type=['csv'], label_visibility="collapsed")
 st.markdown("</div>", unsafe_allow_html=True)
 
 if uploaded_file is not None:
     try:
+        # Leer CSV
         df = pd.read_csv(uploaded_file)
         if df.empty:
-            st.error("El archivo está vacío.")
+            st.error("El archivo CSV está vacío.")
             st.stop()
 
-        # === Limpieza de columnas ===
+        # Limpiar nombres de columnas
         df.columns = df.columns.str.strip()
         df.columns = df.columns.str.replace(r'\s+', ' ', regex=True)
 
-        # === Detección de tiempo ===
+        # Detectar columna de tiempo
         time_col = None
+        time_keywords = ['time', 'timestamp', 'fecha', 'hora']
         for col in df.columns:
-            if any(x in col.lower() for x in ['time', 'fecha', 'timestamp']):
+            if any(kw in col.lower() for kw in time_keywords):
                 time_col = col
                 break
 
         if time_col:
             df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
             df = df.dropna(subset=[time_col])
+            if df.empty:
+                st.error("No se encontraron fechas válidas en la columna de tiempo.")
+                st.stop()
             df = df.set_index(time_col)
 
-        # === Columnas numéricas ===
+        # Detectar columnas numéricas
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         if not numeric_cols:
-            st.error("No se encontraron datos numéricos.")
+            st.error("No se encontraron columnas con datos numéricos.")
+            st.info("Asegúrate de que el CSV tenga valores como 1013.5, 3.2, etc.")
             st.stop()
 
-        # === Mapeo de nombres ===
+        # Mapeo de nombres amigables
         name_map = {
             'presion': 'Presión atmosférica',
             'pressure': 'Presión atmosférica',
@@ -195,11 +201,13 @@ if uploaded_file is not None:
 
         df_clean = df.copy()
         for col in numeric_cols:
+            col_lower = col.lower()
             for key, name in name_map.items():
-                if key in col.lower():
+                if key in col_lower:
                     df_clean = df_clean.rename(columns={col: name})
                     break
 
+        # Usar nombres amigables o fallback
         final_cols = [c for c in df_clean.columns if c in name_map.values()]
         if not final_cols:
             final_cols = numeric_cols[:2]
@@ -210,14 +218,22 @@ if uploaded_file is not None:
             final_cols = ['Presión atmosférica', 'Velocidad del viento'][:len(final_cols)]
 
         # =========================
-        # Pestañas
+        # PESTAÑAS CON NOMBRES CLAROS
         # =========================
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 Gráficos", "📊 Estadísticas", "🔍 Filtros", "🗺️ Mapa"])
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "Gráficos de Presión y Viento",
+            "Estadísticas Meteorológicas",
+            "Filtros por Rango de Valores",
+            "Ubicación del Sensor"
+        ])
 
+        # -----------------------
+        # PESTAÑA 1: GRÁFICOS
+        # -----------------------
         with tab1:
             st.markdown("<div class='card'>", unsafe_allow_html=True)
-            st.markdown("### 📊 Visualización")
-            variable = st.selectbox("Variable", final_cols, key="chart_var")
+            st.markdown("### Gráficos en Tiempo Real")
+            variable = st.selectbox("Selecciona variable", final_cols, key="chart_var")
             chart_type = st.radio("Tipo de gráfico", ["Línea", "Área", "Barra"], horizontal=True)
 
             if chart_type == "Línea":
@@ -231,9 +247,12 @@ if uploaded_file is not None:
                 st.dataframe(df_clean[final_cols], use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
+        # -----------------------
+        # PESTAÑA 2: ESTADÍSTICAS
+        # -----------------------
         with tab2:
             st.markdown("<div class='card'>", unsafe_allow_html=True)
-            st.markdown("### 📈 Estadísticas")
+            st.markdown("### Resumen Estadístico")
             cols = st.columns(len(final_cols))
             for i, var in enumerate(final_cols):
                 with cols[i]:
@@ -245,63 +264,76 @@ if uploaded_file is not None:
                     st.markdown("</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
+        # -----------------------
+        # PESTAÑA 3: FILTROS
+        # -----------------------
         with tab3:
             st.markdown("<div class='card'>", unsafe_allow_html=True)
-            st.markdown("### 🔧 Filtros")
-            var = st.selectbox("Filtrar por", final_cols, key="filter")
-            minv, maxv = df_clean[var].min(), df_clean[var].max()
+            st.markdown("### Filtros Interactivos")
+            var_filter = st.selectbox("Filtrar por variable", final_cols, key="filter_var")
+            min_val, max_val = df_clean[var_filter].min(), df_clean[var_filter].max()
             col1, col2 = st.columns(2)
             with col1:
-                low = st.slider("Mínimo", float(minv), float(maxv), float(minv), step=0.1)
+                low = st.slider("Valor mínimo", float(min_val), float(max_val), float(min_val), step=0.1)
             with col2:
-                high = st.slider("Máximo", float(minv), float(maxv), float(maxv), step=0.1)
+                high = st.slider("Valor máximo", float(min_val), float(max_val), float(max_val), step=0.1)
 
-            filtered = df_clean[(df_clean[var] >= low) & (df_clean[var] <= high)]
-            st.success(f"**{len(filtered)} registros** filtrados")
+            filtered = df_clean[(df_clean[var_filter] >= low) & (df_clean[var_filter] <= high)]
+            st.success(f"**{len(filtered)} registros** cumplen el filtro.")
             st.dataframe(filtered[final_cols], use_container_width=True)
 
             csv = filtered.to_csv().encode('utf-8')
             st.download_button(
-                "📥 Descargar datos filtrados",
+                "Download Descargar datos filtrados",
                 data=csv,
-                file_name=f"filtrado_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                file_name=f"datos_filtrados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv"
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
+        # -----------------------
+        # PESTAÑA 4: UBICACIÓN
+        # -----------------------
         with tab4:
             st.markdown("<div class='card'>", unsafe_allow_html=True)
-            st.markdown("### 🗺️ Ubicación del Sensor")
+            st.markdown("### Ubicación del Sensor")
             st.map(pd.DataFrame({'lat': [6.2006], 'lon': [-75.5783]}), zoom=16)
+
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("#### 🌍 Coordenadas")
-                st.write("**Lat:** 6.2006° N")
-                st.write("**Lon:** -75.5783° W")
-                st.write("**Alt:** 1,495 m.s.n.m")
+                st.markdown("#### Location Coordenadas")
+                st.write("**Latitud:** 6.2006° N")
+                st.write("**Longitud:** -75.5783° W")
+                st.write("**Altitud:** 1,495 m.s.n.m")
             with col2:
-                st.markdown("#### 📡 Sensor")
+                st.markdown("#### Sensor Detalles del Sensor")
                 st.write("**Modelo:** ESP32 + BME280")
-                st.write("**Ubicación:** Edificio Ingeniería")
+                st.write("**Ubicación:** Edificio de Ingeniería")
+                st.write("**Frecuencia:** 1 medición/min")
             st.markdown("</div>", unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"Error: {str(e)}")
-        st.info("Verifica que el CSV tenga columnas numéricas y una de tiempo.")
+        st.error(f"Error al procesar el archivo: {str(e)}")
+        st.info("Posibles causas:\n"
+                "- Columna con texto no numérico\n"
+                "- Nombres con espacios o caracteres especiales\n"
+                "- Archivo corrupto o mal formateado")
 
 else:
-    st.info("Por favor, carga un archivo CSV para comenzar.")
+    st.info("Upload Por favor, carga un archivo CSV para comenzar.")
     st.code("""
-Time,analogico ESP32
-2025-11-11 12:00:00,1013.5
-2025-11-11 12:01:00,1013.2
+Time,analogico ESP32,velocidad viento
+2025-11-11 12:00:00,1013.5,3.2
+2025-11-11 12:01:00,1013.2,3.5
+2025-11-11 12:02:00,1013.0,4.0
     """)
 
 # =========================
-# Footer
+# FOOTER
 # =========================
 st.markdown("""
 <div class='footer'>
-    <p>🌧️ Desarrollado para monitoreo ambiental | <strong>Universidad EAFIT</strong> | Medellín, Colombia</p>
+    <p>Cloud Desarrollado para monitoreo ambiental urbano | 
+    <strong>Universidad EAFIT</strong> | Medellín, Colombia</p>
 </div>
 """, unsafe_allow_html=True)
