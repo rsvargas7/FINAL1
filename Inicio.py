@@ -132,7 +132,7 @@ st.markdown("""
 # =========================
 # TÍTULO CON EMOJIS
 # =========================
-st.markdown('<h1 class="header-title">Cloud Monitoreo Meteorológico EAFIT</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="header-title">⛈️ Monitoreo Meteorológico EAFIT ⛈️</h1>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Presión atmosférica y velocidad del viento en tiempo real</p>', unsafe_allow_html=True)
 
 # =========================
@@ -219,10 +219,10 @@ if uploaded_file is not None:
         # PESTAÑAS CON EMOJIS Y SENTIDO
         # =========================
         tab1, tab2, tab3, tab4 = st.tabs([
-            "Gráficos de Presión y Viento",
-            "Estadísticas Meteorológicas",
-            "Filtros por Rango de Valores",
-            "Ubicación del Sensor"
+            "🍃Gráficos de Presión y Viento🍃",
+            "☄️Estadísticas Meteorológicas☄️",
+            "🎯Filtros por Rango de Valores🎯",
+            "📍Ubicación del Sensor📍"
         ])
 
         # -----------------------
