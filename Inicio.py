@@ -4,192 +4,284 @@ from PIL import Image
 import numpy as np
 from datetime import datetime
 
-# Page configuration
+# =========================
+# Configuración de la página
+# =========================
 st.set_page_config(
-    page_title="Análisis de Sensores - Mi Ciudad",
-    page_icon="📊",
-    layout="wide"
+    page_title="Análisis Meteorológico - EAFIT",
+    page_icon="🌤️",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# =========================
+# Estilos CSS Personalizados
+# =========================
 st.markdown("""
-    <style>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+    
     .main {
         padding: 2rem;
+        font-family: 'Poppins', sans-serif;
     }
-    .stAlert {
-        margin-top: 1rem;
+    .stApp {
+        background: linear-gradient(135deg, #e0f7fa, #ffffff);
     }
-    </style>
+    .header-title {
+        font-size: 2.8rem !important;
+        font-weight: 700;
+        background: linear-gradient(90deg, #1e88e5, #42a5f5);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-bottom: 0.5rem;
+    }
+    .subtitle {
+        font-size: 1.2rem;
+        color: #555;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        margin: 1rem 0;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #42a5f5, #1e88e5);
+        color: white;
+        padding: 1rem;
+        border-radius: 12px;
+        text-align: center;
+        font-weight: 600;
+    }
+    .stSelectbox > div > div {
+        background-color: #f0f7ff;
+        border-radius: 10px;
+    }
+    .stSlider > div > div > div {
+        background: #42a5f5;
+    }
+    .footer {
+        text-align: center;
+        padding: 2rem;
+        color: #777;
+        font-size: 0.9rem;
+        margin-top: 3rem;
+    }
+</style>
 """, unsafe_allow_html=True)
 
-# Title and description
-st.title('📊 Análisis de datos de Sensores en Mi Ciudad')
-st.markdown("""
-    Esta aplicación permite analizar datos de sensores
-    recolectados en diferentes puntos de la ciudad.
-""")
+# =========================
+# Título y Descripción
+# =========================
+st.markdown('<h1 class="header-title">🌤️ Análisis Meteorológico en Tiempo Real</h1>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">Monitoreo de sensores ambientales en la Universidad EAFIT, Medellín</p>', unsafe_allow_html=True)
 
-# Create map data for EAFIT
+# =========================
+# Sidebar - Información
+# =========================
+with st.sidebar:
+    st.image("https://www.eafit.edu.co/-/media/eafit/images/logos/eafit-logo.png", width=200)
+    st.markdown("### 🌍 **Ubicación**")
+    st.markdown("**Universidad EAFIT**")
+    st.caption("📍 Lat: 6.2006, Lon: -75.5783")
+    st.caption("🗻 Altitud: ~1,495 m.s.n.m")
+    st.markdown("---")
+    st.markdown("### 📡 **Sensor**")
+    st.markdown("- **Tipo:** ESP32 + BME280/DHT22")
+    st.markdown("- **Variables:** Presión, Viento")
+    st.markdown("- **Frecuencia:** 1 min")
+    st.markdown("---")
+    st.markdown("### ⚡ **Estado**")
+    st.success("Sistema en línea")
+
+# =========================
+# Datos del mapa
+# =========================
 eafit_location = pd.DataFrame({
     'lat': [6.2006],
     'lon': [-75.5783],
-    'location': ['Universidad EAFIT']
+    'size': [50],
+    'color': ['#1e88e5']
 })
 
-# Display map
-st.subheader("📍 Ubicación de los Sensores - Universidad EAFIT")
-st.map(eafit_location, zoom=15)
-
-# File uploader
-uploaded_file = st.file_uploader('Seleccione archivo CSV', type=['csv'])
+# =========================
+# Carga de archivo
+# =========================
+st.markdown("### 📂 Cargar Datos del Sensor")
+uploaded_file = st.file_uploader("Seleccione archivo CSV con datos de sensores", type=['csv'])
 
 if uploaded_file is not None:
     try:
-        # Load and process data
-        df1 = pd.read_csv(uploaded_file)
-        
-        # Renombrar la columna a 'variable'
-        # Asume que la primera columna después de 'Time' es la variable de interés
-        # O busca una columna específica y la renombra
-        if 'Time' in df1.columns:
-            # Si existe Time, renombrar la otra columna a 'variable'
-            other_columns = [col for col in df1.columns if col != 'Time']
-            if len(other_columns) > 0:
-                df1 = df1.rename(columns={other_columns[0]: 'variable'})
-        else:
-            # Si no existe Time, renombrar la primera columna a 'variable'
-            df1 = df1.rename(columns={df1.columns[0]: 'variable'})
-        
-        # Procesar columna de tiempo si existe
-        if 'Time' in df1.columns:
-            df1['Time'] = pd.to_datetime(df1['Time'])
-            df1 = df1.set_index('Time')
+        df = pd.read_csv(uploaded_file)
 
-        # Create tabs for different analyses
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 Visualización", "📊 Estadísticas", "🔍 Filtros", "🗺️ Información del Sitio"])
+        # Detectar columna de tiempo
+        time_col = None
+        if 'Time' in df.columns:
+            time_col = 'Time'
+        elif 'time' in df.columns:
+            time_col = 'time'
+        elif 'Timestamp' in df.columns:
+            time_col = 'Timestamp'
+        elif df.columns[0].lower() in ['time', 'timestamp', 'fecha']:
+            time_col = df.columns[0]
+
+        if time_col:
+            df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
+            df = df.dropna(subset=[time_col])
+            df = df.set_index(time_col)
+
+        # Detectar variables numéricas (excluyendo lat/lon si existen)
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        if len(numeric_cols) == 0:
+            st.error("No se encontraron columnas numéricas en el archivo.")
+            st.stop()
+
+        # Mapeo amigable de variables
+        variable_names = {
+            'pressure': 'Presión atmosférica',
+            'presion': 'Presión atmosférica',
+            'presión': 'Presión atmosférica',
+            'wind_speed': 'Velocidad del viento',
+            'velocidad': 'Velocidad del viento',
+            'viento': 'Velocidad del viento',
+            'vel_viento': 'Velocidad del viento'
+        }
+
+        # Renombrar columnas
+        df_renamed = df.copy()
+        for col in numeric_cols:
+            col_lower = col.lower()
+            for key, name in variable_names.items():
+                if key in col_lower:
+                    df_renamed = df_renamed.rename(columns={col: name})
+                    break
+
+        # Actualizar lista de columnas numéricas renombradas
+        final_cols = [col for col in df_renamed.columns if col in variable_names.values()]
+        if not final_cols:
+            final_cols = numeric_cols[:2]  # Fallback
+            df_renamed = df_renamed.rename(columns={numeric_cols[0]: 'Presión atmosférica'})
+            if len(numeric_cols) > 1:
+                df_renamed = df_renamed.rename(columns={numeric_cols[1]: 'Velocidad del viento'})
+
+        # =========================
+        # Pestañas
+        # =========================
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 **Gráficos**", "📊 **Estadísticas**", "🔍 **Filtros**", "🗺️ **Mapa**"])
 
         with tab1:
-            st.subheader('Visualización de Datos')
-            
-            # Chart type selector
-            chart_type = st.selectbox(
-                "Seleccione tipo de gráfico",
-                ["Línea", "Área", "Barra"]
-            )
-            
-            # Create plot based on selection
-            if chart_type == "Línea":
-                st.line_chart(df1["variable"])
-            elif chart_type == "Área":
-                st.area_chart(df1["variable"])
-            else:
-                st.bar_chart(df1["variable"])
+            st.markdown("### 📊 Visualización de Variables")
+            variable = st.selectbox("Seleccione variable para graficar", final_cols)
 
-            # Raw data display with toggle
-            if st.checkbox('Mostrar datos crudos'):
-                st.write(df1)
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                chart_type = st.radio("Tipo de gráfico", ["Línea", "Área", "Barra"], horizontal=True)
+
+            with col2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown(f"**Unidad:** {'hPa' if 'Presión' in variable else 'm/s'}")
+
+            if chart_type == "Línea":
+                st.line_chart(df_renamed[variable], use_container_width=True)
+            elif chart_type == "Área":
+                st.area_chart(df_renamed[variable], use_container_width=True)
+            else:
+                st.bar_chart(df_renamed[variable], use_container_width=True)
+
+            if st.checkbox("Mostrar tabla de datos crudos"):
+                st.dataframe(df_renamed[final_cols], use_container_width=True)
 
         with tab2:
-            st.subheader('Análisis Estadístico')
-            
-            # Statistical summary
-            stats_df = df1["variable"].describe()
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.dataframe(stats_df)
-            
-            with col2:
-                # Additional statistics
-                st.metric("Valor Promedio", f"{stats_df['mean']:.2f}")
-                st.metric("Valor Máximo", f"{stats_df['max']:.2f}")
-                st.metric("Valor Mínimo", f"{stats_df['min']:.2f}")
-                st.metric("Desviación Estándar", f"{stats_df['std']:.2f}")
+            st.markdown("### 📈 Estadísticas por Variable")
+            selected_stats = st.multiselect("Variables para estadísticas", final_cols, default=final_cols[:2])
+
+            cols = st.columns(len(selected_stats))
+            for i, var in enumerate(selected_stats):
+                with cols[i]:
+                    stats = df_renamed[var].describe()
+                    unidad = 'hPa' if 'Presión' in var else 'm/s'
+                    st.markdown(f"<div class='metric-card'>", unsafe_allow_html=True)
+                    st.metric(f"**{var}**", f"{stats['mean']:.2f} {unidad}")
+                    st.markdown(f"_Máx: {stats['max']:.2f} | Mín: {stats['min']:.2f}_")
+                    st.markdown(f"_Std: {stats['std']:.2f}_")
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+            st.markdown("### 📋 Resumen Detallado")
+            st.dataframe(df_renamed[selected_stats].describe(), use_container_width=True)
 
         with tab3:
-            st.subheader('Filtros de Datos')
-            
-            # Calcular rango de valores
-            min_value = float(df1["variable"].min())
-            max_value = float(df1["variable"].max())
-            mean_value = float(df1["variable"].mean())
-            
-            # Verificar si hay variación en los datos
-            if min_value == max_value:
-                st.warning(f"⚠️ Todos los valores en el dataset son iguales: {min_value:.2f}")
-                st.info("No es posible aplicar filtros cuando no hay variación en los datos.")
-                st.dataframe(df1)
-            else:
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Minimum value filter
-                    min_val = st.slider(
-                        'Valor mínimo',
-                        min_value,
-                        max_value,
-                        mean_value,
-                        key="min_val"
-                    )
-                    
-                    filtrado_df_min = df1[df1["variable"] > min_val]
-                    st.write(f"Registros con valor superior a {min_val:.2f}:")
-                    st.dataframe(filtrado_df_min)
-                    
-                with col2:
-                    # Maximum value filter
-                    max_val = st.slider(
-                        'Valor máximo',
-                        min_value,
-                        max_value,
-                        mean_value,
-                        key="max_val"
-                    )
-                    
-                    filtrado_df_max = df1[df1["variable"] < max_val]
-                    st.write(f"Registros con valor inferior a {max_val:.2f}:")
-                    st.dataframe(filtrado_df_max)
+            st.markdown("### 🔧 Filtros Interactivos")
+            variable_filter = st.selectbox("Variable para filtrar", final_cols, key="filter_var")
 
-                # Download filtered data
-                if st.button('Descargar datos filtrados'):
-                    csv = filtrado_df_min.to_csv().encode('utf-8')
-                    st.download_button(
-                        label="Descargar CSV",
-                        data=csv,
-                        file_name='datos_filtrados.csv',
-                        mime='text/csv',
-                    )
+            min_val = float(df_renamed[variable_filter].min())
+            max_val = float(df_renamed[variable_filter].max())
+
+            col1, col2 = st.columns(2)
+            with col1:
+                lower = st.slider("Valor mínimo", min_val, max_val, min_val, step=0.1)
+            with col2:
+                upper = st.slider("Valor máximo", min_val, max_val, max_val, step=0.1)
+
+            filtered = df_renamed[(df_renamed[variable_filter] >= lower) & (df_renamed[variable_filter] <= upper)]
+            st.success(f"**{len(filtered)} registros** cumplen el filtro.")
+
+            st.dataframe(filtered[final_cols], use_container_width=True)
+
+            csv = filtered.to_csv().encode('utf-8')
+            st.download_button(
+                "📥 Descargar datos filtrados",
+                data=csv,
+                file_name=f"datos_filtrados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv"
+            )
 
         with tab4:
-            st.subheader("Información del Sitio de Medición")
-            
+            st.markdown("### 🗺️ Ubicación del Sensor")
+            st.map(eafit_location, zoom=16)
+
             col1, col2 = st.columns(2)
-            
             with col1:
-                st.write("### Ubicación del Sensor")
-                st.write("**Universidad EAFIT**")
-                st.write("- Latitud: 6.2006")
-                st.write("- Longitud: -75.5783")
-                st.write("- Altitud: ~1,495 metros sobre el nivel del mar")
-            
+                st.markdown("<div class='card'>", unsafe_allow_html=True)
+                st.markdown("#### 🌍 Coordenadas")
+                st.markdown("**Latitud:** 6.2006° N")
+                st.markdown("**Longitud:** -75.5783° W")
+                st.markdown("**Altitud:** 1,495 m.s.n.m")
+                st.markdown("</div>", unsafe_allow_html=True)
+
             with col2:
-                st.write("### Detalles del Sensor")
-                st.write("- Tipo: ESP32")
-                st.write("- Variable medida: Según configuración del sensor")
-                st.write("- Frecuencia de medición: Según configuración")
-                st.write("- Ubicación: Campus universitario")
+                st.markdown("<div class='card'>", unsafe_allow_html=True)
+                st.markdown("#### 📡 Información del Sensor")
+                st.markdown("**Modelo:** ESP32 + BME280")
+                st.markdown("**Variables:** Presión, Viento")
+                st.markdown("**Ubicación:** Edificio de Ingeniería")
+                st.markdown("</div>", unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f'Error al procesar el archivo: {str(e)}')
-        st.info('Asegúrese de que el archivo CSV tenga al menos una columna con datos.')
+        st.error(f"Error al procesar el archivo: {str(e)}")
+        st.info("Asegúrate de que el CSV tenga columnas con nombres como 'Time', 'pressure', 'wind_speed', etc.")
+
 else:
-    st.warning('Por favor, cargue un archivo CSV para comenzar el análisis.')
-    
+    st.info("👈 Por favor, carga un archivo CSV para comenzar el análisis.")
+    st.markdown("#### Ejemplo de estructura esperada:")
+    st.code("""
+Time,pressure,wind_speed
+2025-11-11 12:00:00,1013.25,3.5
+2025-11-11 12:01:00,1013.10,4.1
+...
+    """)
+
+# =========================
 # Footer
+# =========================
 st.markdown("""
-    ---
-    Desarrollado para el análisis de datos de sensores urbanos.
-    Ubicación: Universidad EAFIT, Medellín, Colombia
-""")
+<div class='footer'>
+    <hr style='border-top: 1px solid #ddd;'>
+    <p>🌱 Desarrollado para el monitoreo ambiental urbano | 
+    <strong>Universidad EAFIT</strong> | Medellín, Colombia</p>
+</div>
+""", unsafe_allow_html=True)
